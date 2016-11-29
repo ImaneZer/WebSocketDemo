@@ -30,35 +30,48 @@ document.querySelector('header>p').textContent = decodeURIComponent(wsname);
 
 
 // create a WebSocket to the server
-var ws = new WebSocket("ws://" + window.location.host);//new WebSocket("ws://127.0.0.1:8080/WSServer_war_exploded/websocket/nope");
-
-
-// we get notified once connected to the server
-ws.onopen = function(event) {
-  console.log("We are connected.");
-};
-
-// listen to messages comming from the server. When it happens, create a new <li> and append it to the DOM.
-var messages = document.querySelector('#messages');
-var line;
-ws.onmessage = function(event) {
-  line = document.createElement('li');
-  line.textContent = event.data;
-  messages.appendChild(line);
-};
-
-// retrieve the input element. Add listeners in order to send the content of the input when the "return" key is pressed.
-var sendForm = document.querySelector('form');
-var sendInput = document.querySelector('form input');
-sendForm.addEventListener('submit', sendMessage, true);
-sendForm.addEventListener('blur', sendMessage, true);
-
-function sendMessage(event) {
-  event.preventDefault();
-  event.stopPropagation();
-  if (sendInput.value !== '') {
-    // send data through the WebSocket
-    ws.send(sendInput.value);
-    sendInput.value = '';
-  }
+var client = new Paho.MQTT.Client("127.0.0.1", Number(8080), "clientId" + Date.now().toString());
+var sensor;
+client.cnxionLost = function (responseObject) {
+  console.log("Deconnected: "+responseObject.errorMessage);
 }
+
+client.onMessageArrived = function (message) {
+  line = document.createElement('li');
+  var id = message.destinationName.substr(message.destinationName.indexOf("/")+1,
+      message.destinationName.length);
+  var stringJson= {
+    "id": id,
+    "name": id,
+    "type": JSON.parse(message.payloadString).type,
+    "data": {
+    "value": JSON.parse(message.payloadString).value
+    }
+  };
+  sensor = TypeSensor(stringJson);
+
+  line.textContent= "name : "+sensor.name +"\r\n";
+  line.textContent+="id : "+sensor.id+"\r\n";
+  line.textContent+="value : "+sensor.data.value+"  " +
+  		"(type:"+stringJson.type+")";
+
+  messages.appendChild(line);
+  line.innerHTML = line.innerHTML.replace(/\n\r?/g, '<br />');
+}
+
+// if connected
+function cnx(){
+  console.log("On est connecté!");
+  client.subscribe('Valeur/#', {qos: 0});
+
+}
+//if errors
+function error(){
+  console.log("error!");
+
+}
+
+
+client.connect({
+  onSuccess: cnx, onerror: error
+});
